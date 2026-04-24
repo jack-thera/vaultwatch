@@ -77,7 +77,8 @@ monitor:
 }
 
 func TestLoad_MissingToken_ReturnsError(t *testing.T) {
-	os.Unsetenv("VAULT_TOKEN")
+	// Ensure VAULT_TOKEN is not set so the config has no token source.
+	t.Setenv("VAULT_TOKEN", "")
 	path := writeTemp(t, `
 monitor:
   secret_paths:
@@ -108,5 +109,22 @@ func TestLoad_FileNotFound(t *testing.T) {
 	_, err := config.Load(filepath.Join(t.TempDir(), "nonexistent.yaml"))
 	if err == nil {
 		t.Fatal("expected error for missing file, got nil")
+	}
+}
+
+func TestLoad_TokenFromEnv(t *testing.T) {
+	t.Setenv("VAULT_TOKEN", "s.fromenv")
+	path := writeTemp(t, `
+monitor:
+  secret_paths:
+    - secret/data/test
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Vault.Token != "s.fromenv" {
+		t.Errorf("expected token from env, got %q", cfg.Vault.Token)
 	}
 }
