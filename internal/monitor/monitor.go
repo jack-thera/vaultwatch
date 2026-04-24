@@ -108,3 +108,15 @@ func HasWarnings(statuses []SecretStatus) bool {
 	}
 	return false
 }
+
+// Warnings returns a filtered slice containing only the statuses that are
+// in a warning state. Returns an empty slice if none are warning.
+func Warnings(statuses []SecretStatus) []SecretStatus {
+	warnings := make([]SecretStatus, 0)
+	for _, s := range statuses {
+		if s.Warning {
+			warnings = append(warnings, s)
+		}
+	}
+	return warnings
+}
