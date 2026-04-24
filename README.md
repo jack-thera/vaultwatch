@@ -39,6 +39,7 @@ vaultwatch watch --threshold 48h --alert slack
 | `--alert` | Alert method (`slack`, `email`, `stdout`) | `stdout` |
 | `--interval` | How often to poll Vault | `5m` |
 | `--path` | Vault secret path to monitor | `secret/` |
+| `--once` | Run a single check and exit (useful for CI/cron) | `false` |
 
 **Example — watch a specific path and post to Slack:**
 
@@ -48,6 +49,12 @@ vaultwatch watch \
   --threshold 72h \
   --alert slack \
   --slack-webhook https://hooks.slack.com/services/xxx
+```
+
+**Example — one-shot check in a CI pipeline:**
+
+```bash
+vaultwatch watch --path secret/production --threshold 24h --once
 ```
 
 ---
