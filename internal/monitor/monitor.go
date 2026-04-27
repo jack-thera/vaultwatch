@@ -14,6 +14,16 @@ type Warning struct {
 	ExpiresAt time.Time
 }
 
+// DaysUntilExpiry returns the number of days until the secret expires,
+// rounded down to the nearest whole day.
+func (w Warning) DaysUntilExpiry() int {
+	d := time.Until(w.ExpiresAt)
+	if d < 0 {
+		return 0
+	}
+	return int(d.Hours() / 24)
+}
+
 // Monitor checks Vault secrets and collects expiration warnings.
 type Monitor struct {
 	client   *vault.Client
