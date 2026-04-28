@@ -1,60 +1,70 @@
 package vault
 
 import (
-	"context"
 	"fmt"
 	"time"
 )
 
-// SecretLookup is a function that retrieves lease info for a given path.
-type SecretLookup func(ctx context.Context, path string) (*LeaseInfo, error)
-
-// LeaseChecker evaluates lease statuses for a set of secret paths.
+// LeaseChecker checks the lease status of multiple Vault secret paths.
 type LeaseChecker struct {
-	paths         []string
-	lookup        SecretLookup
-	warnThreshold time.Duration
-	critThreshold time.Duration
+	client          *Client
+	paths           []string
+	warningThreshold time.Duration
+	criticalThreshold time.Duration
 }
 
-// LeaseResult pairs a path with its evaluated LeaseInfo and status.
-type LeaseResult struct {
-	Path   string
-	Lease  *LeaseInfo
-	Status LeaseStatus
-	Err    error
-}
-
-// NewLeaseChecker creates a LeaseChecker for the given paths and thresholds.
-func NewLeaseChecker(paths []string, lookup SecretLookup, warn, crit time.Duration) *LeaseChecker {
+// NewLeaseChecker creates a new LeaseChecker for the given paths and alert thresholds.
+func NewLeaseChecker(client *Client, paths []string, warningThreshold, criticalThreshold time.Duration) *LeaseChecker {
 	return &LeaseChecker{
-		paths:         paths,
-		lookup:        lookup,
-		warnThreshold: warn,
-		critThreshold: crit,
+		client:           client,
+		paths:            paths,
+		warningThreshold: warningThreshold,
+		criticalThreshold: criticalThreshold,
 	}
 }
 
-// CheckAll evaluates all configured secret paths and returns their results.
-// Errors from individual lookups are recorded in LeaseResult.Err rather than
-// aborting the entire check run.
-func (c *LeaseChecker) CheckAll(ctx context.Context) ([]LeaseResult, error) {
-	if len(c.paths) == 0 {
-		return nil, fmt.Errorf("lease checker: no secret paths configured")
-	}
+// CheckAll looks up all configured secret paths and returns a map of path to LeaseInfo.
+// Returns an error if all paths fail; partial failures are accumulated.
+func (lc *LeaseChecker) CheckAll() (map[string]LeaseInfo, error) {
+	results := make(map[string]LeaseInfo, len(lc.paths))
+	var lastErr error
+	errCount := 0
 
-	results := make([]LeaseResult, 0, len(c.paths))
-	for _, path := range c.paths {
-		result := LeaseResult{Path: path}
-		lease, err := c.lookup(ctx, path)
+	for _, path := range lc.paths {
+		secret, err := lc.client.LookupSecret(path)
 		if err != nil {
-			result.Err = fmt.Errorf("lookup %q: %w", path, err)
-			results = append(results, result)
+			lastErr = fmt.Errorf("path %q: %w", path, err)
+			errCount++
 			continue
 		}
-		result.Lease = lease
-		result.Status = lease.Status(c.warnThreshold, c.critThreshold)
-		results = append(results, result)
+
+		info := LeaseInfo{
+			Path:      path,
+			LeaseID:   secret.LeaseID,
+			Renewable: secret.Renewable,
+			Expiry:    time.Now().Add(time.Duration(secret.LeaseDuration) * time.Second),
+		}
+		results[path] = info
 	}
+
+	if errCount == len(lc.paths) {
+		return results, fmt.Errorf("all secret paths failed; last error: %w", lastErr)
+	}
+
 	return results, nil
+}
+
+// CheckPath looks up a single secret path and returns its LeaseInfo.
+func (lc *LeaseChecker) CheckPath(path string) (LeaseInfo, error) {
+	secret, err := lc.client.LookupSecret(path)
+	if err != nil {
+		return LeaseInfo{}, fmt.Errorf("lookup %q: %w", path, err)
+	}
+
+	return LeaseInfo{
+		Path:      path,
+		LeaseID:   secret.LeaseID,
+		Renewable: secret.Renewable,
+		Expiry:    time.Now().Add(time.Duration(secret.LeaseDuration) * time.Second),
+	}, nil
 }
