@@ -49,6 +49,17 @@ func (pc *PolicyChecker) EvaluateAll(ctx context.Context, paths []string) ([]Ren
 	return candidates, nil
 }
 
+// FilterRenewable returns only the candidates that should be renewed.
+func FilterRenewable(candidates []RenewalCandidate) []RenewalCandidate {
+	result := make([]RenewalCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		if c.ShouldRenew {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
 func renewalReason(info LeaseInfo, should bool) string {
 	if !should {
 		remaining := time.Until(info.Expiry)
