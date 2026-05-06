@@ -31,6 +31,7 @@ func NewRenewalExecutor(renewer Renewer, policy RenewalPolicy) *RenewalExecutor 
 
 // Execute filters the provided lease infos by the renewal policy and
 // triggers renewal for eligible paths, returning the renewal results.
+// Returns nil if no leases are eligible for renewal.
 func (e *RenewalExecutor) Execute(infos []vault.LeaseInfo) []vault.RenewalResult {
 	var eligible []string
 
@@ -45,4 +46,16 @@ func (e *RenewalExecutor) Execute(infos []vault.LeaseInfo) []vault.RenewalResult
 	}
 
 	return e.renewer.RenewAll(eligible)
+}
+
+// EligiblePaths returns the paths from the provided lease infos that
+// satisfy the renewal policy, without triggering any renewal.
+func (e *RenewalExecutor) EligiblePaths(infos []vault.LeaseInfo) []string {
+	var eligible []string
+	for _, info := range infos {
+		if e.policy.ShouldRenew(info) {
+			eligible = append(eligible, info.Path)
+		}
+	}
+	return eligible
 }
